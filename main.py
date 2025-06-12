@@ -42,18 +42,21 @@ class IconCraft(TkinterDnD.Tk):
 
     def __init__(self):
         super().__init__()
+        # Listas para rutas y miniaturas
         self.images: List[str] = []
         self.thumbnail_photos: List[ImageTk.PhotoImage] = []
+        # Imágenes de assets
         self.logo_photo: Optional[ImageTk.PhotoImage] = None
         self.upload_icon: Optional[ImageTk.PhotoImage] = None
         self.convert_icon: Optional[ImageTk.PhotoImage] = None
         self.eureka_image: Optional[ImageTk.PhotoImage] = None
+        self.no_image_photo: Optional[ImageTk.PhotoImage] = None
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.assets_dir = os.path.join(base_dir, "assets")
         self.ico_path = os.path.join(self.assets_dir, "IconCraftLogo.ico")
 
-        # Ventana inicial: ancho x alto y centrado
+        # Configuración ventana
         self.title("Icon Craft")
         self.geometry("1200x700")
         self.configure(bg=self.BG_COLOR, highlightbackground=self.PRIMARY_COLOR, highlightthickness=2)
@@ -65,7 +68,6 @@ class IconCraft(TkinterDnD.Tk):
         self._setup_theme()
         self._create_widgets()
         self._setup_drag_and_drop()
-        # Centrar la ventana tras levantarla
         self.after_idle(lambda: self._center_window(1200, 700))
 
     def _center_window(self, w: int, h: int):
@@ -82,8 +84,10 @@ class IconCraft(TkinterDnD.Tk):
         style.configure('TLabel', background=self.BG_COLOR, foreground=self.TEXT_COLOR)
 
     def _load_assets(self):
+        # Carga de imágenes de assets con tamaño ajustado
         self.logo_photo = self._load_resized_image("IconCraft.png", (self.LOGO_WIDTH, -1))
         self.eureka_image = self._load_resized_image("eureka.png", (self.EUREKA_WIDTH, -1))
+        self.no_image_photo = self._load_resized_image("nohayimagen.png", (self.EUREKA_WIDTH, -1))
         self.upload_icon = self._load_resized_image("upload.png", self.BUTTON_ICON_SIZE)
         self.convert_icon = self._load_resized_image("convert.png", self.BUTTON_ICON_SIZE)
 
@@ -103,16 +107,14 @@ class IconCraft(TkinterDnD.Tk):
             return None
 
     def _create_widgets(self):
-        # Header: botón subir | logo+título | botón convertir
+        # Header con botón subir, logo+título y botón convertir
         header = tk.Frame(self, bg=self.BG_COLOR)
         header.pack(fill=tk.X, pady=10, padx=20)
 
-        # Subir imágenes (izquierda)
         left = tk.Frame(header, bg=self.BG_COLOR)
         left.pack(side=tk.LEFT)
         self._build_glowing_button(left, self.upload_icon, "subir imágenes", self.upload_images)
 
-        # Logo y título (centro)
         center = tk.Frame(header, bg=self.BG_COLOR)
         center.pack(side=tk.LEFT, expand=True)
         if self.logo_photo:
@@ -120,7 +122,6 @@ class IconCraft(TkinterDnD.Tk):
         tk.Label(center, text="Icon Craft", bg=self.BG_COLOR, fg=self.TEXT_COLOR,
                  font=(self.THEME_FONT, 28, 'bold')).pack(pady=(5,0))
 
-        # Convertir a .ico (derecha)
         right = tk.Frame(header, bg=self.BG_COLOR)
         right.pack(side=tk.RIGHT)
         self._build_glowing_button(right, self.convert_icon, "convertir a .ico", self.convert_icons)
@@ -183,6 +184,11 @@ class IconCraft(TkinterDnD.Tk):
             lbl.grid(row=0, column=idx, padx=5, pady=5)
 
     def convert_icons(self):
+        # Si no hay imágenes, mostrar popup de error
+        if not self.images:
+            self._show_no_image_dialog()
+            return
+        # Selección de carpeta destino
         destination = filedialog.askdirectory(title="Selecciona carpeta de destino")
         if not destination:
             return
@@ -224,7 +230,36 @@ class IconCraft(TkinterDnD.Tk):
         ok_button.pack(pady=(20, 20), ipadx=10, ipady=5)
 
         dialog.update_idletasks()
-        # Centrar popup respecto a la ventana principal
+        x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        dialog.wait_window()
+
+    def _show_no_image_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Error")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.BG_COLOR)
+
+        if os.path.isfile(self.ico_path):
+            dialog.iconbitmap(self.ico_path)
+
+        if self.no_image_photo:
+            tk.Label(dialog, image=self.no_image_photo, bg=self.BG_COLOR, bd=0).pack(pady=(20, 10))
+
+        message = "No has subido ninguna imagen.\nPor favor, sube al menos una antes de convertir."
+        tk.Label(dialog, text=message, font=(self.THEME_FONT, 12), fg=self.TEXT_COLOR, bg=self.BG_COLOR,
+                 justify=tk.CENTER).pack(padx=30)
+
+        btn = tk.Button(dialog, text="Cerrar", font=(self.THEME_FONT, 10),
+                        bg=self.WIDGET_BG_COLOR, fg=self.TEXT_COLOR, relief='flat',
+                        activebackground=self.PRIMARY_COLOR, bd=0, highlightthickness=0,
+                        command=dialog.destroy, cursor="hand2")
+        btn.pack(pady=(20, 20), ipadx=10, ipady=5)
+
+        dialog.update_idletasks()
         x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
         y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
