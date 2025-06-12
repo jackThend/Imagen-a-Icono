@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
 Icon Craft — Convertidor de Imágenes a Iconos (.ico)
-Creado por Jack Thend
-
 """
 
 import os
@@ -15,16 +12,23 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image, ImageTk, UnidentifiedImageError
 from typing import Optional, List, Sequence
 
+# Selecciona el mejor filtro de remuestreo según la versión de PIL
 try:
     RESAMPLE = Image.Resampling.LANCZOS
 except AttributeError:
     RESAMPLE = Image.LANCZOS
 
+# Tamaños para generar el icono .ico
+ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
 class IconCraft(TkinterDnD.Tk):
+    """
+    IconCraft: aplicación para convertir imágenes en iconos .ico
+    Mantiene la disposición estética: botón subir a la izquierda,
+    logo/título en el centro y botón convertir a la derecha.
+    """
     BG_COLOR = "#000000"
     WIDGET_BG_COLOR = "#121212"
-    SHADOW_COLOR = "#000000"
     PRIMARY_COLOR = "#76ff03"
     TEXT_COLOR = "#ffffff"
     BORDER_COLOR = "#1f1f1f"
@@ -39,6 +43,7 @@ class IconCraft(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.images: List[str] = []
+        self.thumbnail_photos: List[ImageTk.PhotoImage] = []
         self.logo_photo: Optional[ImageTk.PhotoImage] = None
         self.upload_icon: Optional[ImageTk.PhotoImage] = None
         self.convert_icon: Optional[ImageTk.PhotoImage] = None
@@ -48,17 +53,26 @@ class IconCraft(TkinterDnD.Tk):
         self.assets_dir = os.path.join(base_dir, "assets")
         self.ico_path = os.path.join(self.assets_dir, "IconCraftLogo.ico")
 
+        # Ventana inicial: ancho x alto y centrado
         self.title("Icon Craft")
-        self.geometry("1100x850")
+        self.geometry("1200x700")
         self.configure(bg=self.BG_COLOR, highlightbackground=self.PRIMARY_COLOR, highlightthickness=2)
-
         if os.path.isfile(self.ico_path):
             self.iconbitmap(self.ico_path)
 
+        # Carga recursos y UI
         self._load_assets()
         self._setup_theme()
         self._create_widgets()
         self._setup_drag_and_drop()
+        # Centrar la ventana tras levantarla
+        self.after_idle(lambda: self._center_window(1200, 700))
+
+    def _center_window(self, w: int, h: int):
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        x = (sw // 2) - (w // 2)
+        y = (sh // 2) - (h // 2)
+        self.geometry(f"{w}x{h}+{x}+{y}")
 
     def _setup_theme(self):
         style = ttk.Style(self)
@@ -82,121 +96,94 @@ class IconCraft(TkinterDnD.Tk):
             if size[1] == -1:
                 w, h = img.size
                 new_w = size[0]
-                new_h = int(h * (new_w / w)) if w > 0 else 0
-                size = (new_w, new_h)
+                size = (new_w, int(h * (new_w / w)))
             img = img.resize(size, RESAMPLE)
             return ImageTk.PhotoImage(img)
-        except (UnidentifiedImageError, OSError, FileNotFoundError):
+        except (UnidentifiedImageError, OSError):
             return None
 
     def _create_widgets(self):
-        top_frame = tk.Frame(self, bg=self.BG_COLOR)
-        top_frame.pack(pady=(20, 0))
+        # Header: botón subir | logo+título | botón convertir
+        header = tk.Frame(self, bg=self.BG_COLOR)
+        header.pack(fill=tk.X, pady=10, padx=20)
 
+        # Subir imágenes (izquierda)
+        left = tk.Frame(header, bg=self.BG_COLOR)
+        left.pack(side=tk.LEFT)
+        self._build_glowing_button(left, self.upload_icon, "subir imágenes", self.upload_images)
+
+        # Logo y título (centro)
+        center = tk.Frame(header, bg=self.BG_COLOR)
+        center.pack(side=tk.LEFT, expand=True)
         if self.logo_photo:
-            logo_label = tk.Label(top_frame, image=self.logo_photo, bg=self.BG_COLOR, bd=0, highlightthickness=0)
-            logo_label.pack()
+            tk.Label(center, image=self.logo_photo, bg=self.BG_COLOR, bd=0).pack()
+        tk.Label(center, text="Icon Craft", bg=self.BG_COLOR, fg=self.TEXT_COLOR,
+                 font=(self.THEME_FONT, 28, 'bold')).pack(pady=(5,0))
 
-        header = ttk.Label(top_frame, text="Icon Craft", background=self.BG_COLOR, font=(self.THEME_FONT, 28, 'bold'))
-        header.pack(pady=(5, 20))
+        # Convertir a .ico (derecha)
+        right = tk.Frame(header, bg=self.BG_COLOR)
+        right.pack(side=tk.RIGHT)
+        self._build_glowing_button(right, self.convert_icon, "convertir a .ico", self.convert_icons)
 
-        ctrl_panel = tk.Frame(self, bg=self.BG_COLOR)
-        ctrl_panel.pack(pady=(10, 30))
-
-        def build_glowing_button(parent, image, text, command):
-            glow = tk.Frame(parent, bg=self.BG_COLOR, highlightthickness=0)
-            glow.pack(side=tk.LEFT, padx=100)
-
-            button = tk.Button(
-                glow,
-                image=image,
-                compound=tk.TOP,
-                text=text,
-                font=(self.THEME_FONT, 11),
-                fg=self.TEXT_COLOR,
-                bg=self.BG_COLOR,
-                activebackground=self.BG_COLOR,
-                bd=0,
-                highlightthickness=0,
-                command=command,
-                cursor="hand2"
-            )
-            button.pack()
-
-            def on_enter(e):
-                glow.config(highlightthickness=6, highlightbackground=self.PRIMARY_COLOR)
-
-            def on_leave(e):
-                glow.config(highlightthickness=0)
-
-            button.bind("<Enter>", on_enter)
-            button.bind("<Leave>", on_leave)
-
-        build_glowing_button(ctrl_panel, self.upload_icon, "subir imagenes", self.upload_images)
-        build_glowing_button(ctrl_panel, self.convert_icon, "convertir a .ico", self.convert_icons)
-
+        # Canvas para miniaturas
         canvas_frame = tk.Frame(self, bg=self.BG_COLOR)
-        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=20)
-
-        self.canvas = tk.Canvas(
-            canvas_frame,
-            bg=self.WIDGET_BG_COLOR,
-            highlightthickness=2,
-            highlightbackground=self.BORDER_COLOR,
-            relief='flat',
-            bd=0
-        )
-        self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
+        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.canvas = tk.Canvas(canvas_frame, bg=self.WIDGET_BG_COLOR,
+                                highlightthickness=2, highlightbackground=self.BORDER_COLOR)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
         self.scroll_x = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
-        self.scroll_x.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+        self.scroll_x.pack(side=tk.BOTTOM, fill=tk.X, pady=(5,0))
         self.canvas.configure(xscrollcommand=self.scroll_x.set)
-
         self.inner = ttk.Frame(self.canvas)
-        self.canvas.create_window((10, 10), window=self.inner, anchor='nw')
+        self.canvas.create_window((10,10), window=self.inner, anchor='nw')
         self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
 
+    def _build_glowing_button(self, parent, image, text, cmd):
+        frm = tk.Frame(parent, bg=self.BG_COLOR)
+        frm.pack(padx=10)
+        btn = tk.Button(frm, image=image, text=text, compound=tk.TOP,
+                        fg=self.TEXT_COLOR, bg=self.BG_COLOR, bd=0,
+                        activebackground=self.BG_COLOR, cursor="hand2",
+                        font=(self.THEME_FONT,11), command=cmd)
+        btn.pack()
+        btn.bind("<Enter>", lambda e: frm.config(highlightthickness=6, highlightbackground=self.PRIMARY_COLOR))
+        btn.bind("<Leave>", lambda e: frm.config(highlightthickness=0))
+
     def _setup_drag_and_drop(self):
-        for widget in (self.canvas, self.inner, self):
-            widget.drop_target_register(DND_FILES)
-            widget.dnd_bind('<<Drop>>', self.drop_images)
+        for w in (self, self.canvas, self.inner):
+            w.drop_target_register(DND_FILES)
+            w.dnd_bind('<<Drop>>', self.drop_images)
 
     def drop_images(self, event):
-        if hasattr(event, 'data'):
-            files = self.tk.splitlist(event.data)
-            self.add_images(list(files))
+        paths = self.tk.splitlist(event.data) if hasattr(event,'data') else []
+        self.add_images(paths)
 
     def upload_images(self):
-        files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png *.jpg *.jpeg *.bmp *.webp")])
+        files = filedialog.askopenfilenames(filetypes=[("Imágenes","*.png *.jpg *.jpeg *.bmp *.webp")])
         if files:
-            self.add_images(list(files))
+            self.add_images(files)
 
     def add_images(self, paths: Sequence[str]):
-        for path in paths:
+        for p in paths:
             if len(self.images) >= self.MAX_IMAGES:
                 messagebox.showwarning("Límite alcanzado", f"No puedes añadir más de {self.MAX_IMAGES} imágenes.")
                 break
-            if path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
-                try:
-                    image = Image.open(path)
-                    image.thumbnail(self.THUMBNAIL_SIZE, RESAMPLE)
-                    thumb = ImageTk.PhotoImage(image)
-                    shadow_frame = tk.Frame(self.inner, bg=self.SHADOW_COLOR)
-                    shadow_frame.pack(side=tk.LEFT, padx=10, pady=10)
-                    label = tk.Label(shadow_frame, image=thumb, bg=self.WIDGET_BG_COLOR, bd=0)
-                    label.image = thumb
-                    label.pack(padx=2, pady=2)
-                    self.images.append(path)
-                except (UnidentifiedImageError, OSError) as err:
-                    messagebox.showerror("Error al cargar imagen", f"No se pudo cargar:\n{path}\n\nError: {err}")
-        self.canvas.update_idletasks()
-        self.canvas.xview_moveto(1.0)
+            if not p.lower().endswith(('.png','.jpg','.jpeg','.bmp','.webp')):
+                continue
+            try:
+                img = Image.open(p).convert('RGBA')
+                img.thumbnail(self.THUMBNAIL_SIZE, RESAMPLE)
+                thumb = ImageTk.PhotoImage(img)
+            except Exception:
+                continue
+            self.images.append(p)
+            self.thumbnail_photos.append(thumb)
+            idx = len(self.thumbnail_photos) - 1
+            lbl = tk.Label(self.inner, image=thumb, bg=self.WIDGET_BG_COLOR)
+            lbl.grid(row=0, column=idx, padx=5, pady=5)
 
     def convert_icons(self):
-        if not self.images:
-            messagebox.showinfo("Sin imágenes", "Añade imágenes para convertirlas en iconos.")
-            return
-        destination = filedialog.askdirectory(title="Selecciona dónde guardar los iconos")
+        destination = filedialog.askdirectory(title="Selecciona carpeta de destino")
         if not destination:
             return
         created_count = 0
@@ -204,8 +191,7 @@ class IconCraft(TkinterDnD.Tk):
             base_name = os.path.splitext(os.path.basename(src_path))[0]
             output_path = os.path.join(destination, f"{base_name}.ico")
             try:
-                Image.open(src_path).save(output_path, format='ICO',
-                                          sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+                Image.open(src_path).save(output_path, format='ICO', sizes=ICO_SIZES)
                 created_count += 1
             except OSError as err:
                 messagebox.showerror("Error de conversión", f"No se pudo convertir:\n{src_path}\n\nError: {err}")
@@ -231,12 +217,14 @@ class IconCraft(TkinterDnD.Tk):
         tk.Label(dialog, text=msg, font=(self.THEME_FONT, 12), fg=self.TEXT_COLOR, bg=self.BG_COLOR,
                  justify=tk.CENTER).pack(padx=30)
 
-        ok_button = tk.Button(dialog, text="Volver al caldero", font=(self.THEME_FONT, 10), bg=self.WIDGET_BG_COLOR,
-                              fg=self.TEXT_COLOR, relief='flat', activebackground=self.PRIMARY_COLOR,
-                              bd=0, highlightthickness=0, command=dialog.destroy, cursor="hand2")
+        ok_button = tk.Button(dialog, text="Volver al caldero", font=(self.THEME_FONT, 10),
+                              bg=self.WIDGET_BG_COLOR, fg=self.TEXT_COLOR, relief='flat',
+                              activebackground=self.PRIMARY_COLOR, bd=0, highlightthickness=0,
+                              command=dialog.destroy, cursor="hand2")
         ok_button.pack(pady=(20, 20), ipadx=10, ipady=5)
 
         dialog.update_idletasks()
+        # Centrar popup respecto a la ventana principal
         x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
         y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
@@ -248,7 +236,6 @@ class IconCraft(TkinterDnD.Tk):
             child.destroy()
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
         self.canvas.update_idletasks()
-
 
 if __name__ == "__main__":
     app = IconCraft()
