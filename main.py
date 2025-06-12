@@ -3,301 +3,250 @@
 
 """
 Icon Craft — Convertidor de Imágenes a Iconos (.ico)
-Autor: [Tu Nombre]
-Requisitos:
-    pip install pillow tkinterdnd2
-Opcional:
-    Carpeta ./assets/ con:
-      - upload.png, convert.png (botones)
-      - IconCraft.png       (logo principal en la cabecera)
-      - IconCraftLogo.ico   (icono de la ventana y ejecutable)
-      - eureka.png         (imagen de éxito en diálogo)
+Creado por Jack Thend
+
 """
 
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
-
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image, ImageTk, UnidentifiedImageError
 from typing import Optional, List, Sequence
 
-# Selección de filtro de remuestreo
 try:
     RESAMPLE = Image.Resampling.LANCZOS
 except AttributeError:
-    RESAMPLE = Image.LANCZOS  # type: ignore
+    RESAMPLE = Image.LANCZOS
 
 
 class IconCraft(TkinterDnD.Tk):
-    # Atributos para el analizador estático
-    max_images: int
-    images: List[str]
+    BG_COLOR = "#000000"
+    WIDGET_BG_COLOR = "#121212"
+    SHADOW_COLOR = "#000000"
+    PRIMARY_COLOR = "#76ff03"
+    TEXT_COLOR = "#ffffff"
+    BORDER_COLOR = "#1f1f1f"
+    THEME_FONT = "Segoe UI"
+
+    MAX_IMAGES = 40
+    THUMBNAIL_SIZE = (96, 96)
+    BUTTON_ICON_SIZE = (160, 160)
+    LOGO_WIDTH = 320
+    EUREKA_WIDTH = 200
 
     def __init__(self):
         super().__init__()
-
-        self.title("Icon Craft")
-        self.geometry("900x600")
-        self.configure(bg="#f5f5f5")
-
-        self.max_images = 40
-        self.images = []
+        self.images: List[str] = []
+        self.logo_photo: Optional[ImageTk.PhotoImage] = None
+        self.upload_icon: Optional[ImageTk.PhotoImage] = None
+        self.convert_icon: Optional[ImageTk.PhotoImage] = None
+        self.eureka_image: Optional[ImageTk.PhotoImage] = None
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.assets_dir = os.path.join(base_dir, "assets")
         self.ico_path = os.path.join(self.assets_dir, "IconCraftLogo.ico")
 
+        self.title("Icon Craft")
+        self.geometry("1100x850")
+        self.configure(bg=self.BG_COLOR, highlightbackground=self.PRIMARY_COLOR, highlightthickness=2)
+
         if os.path.isfile(self.ico_path):
             self.iconbitmap(self.ico_path)
 
-        self.eureka_image: Optional[ImageTk.PhotoImage] = None
-        eureka_path = os.path.join(self.assets_dir, "eureka.png")
-        if os.path.isfile(eureka_path):
-            try:
-                img_e = Image.open(eureka_path)
-                w, h = img_e.size
-                new_w = 200
-                new_h = int(h * (new_w / w))
-                img_e = img_e.resize((new_w, new_h), RESAMPLE)
-                self.eureka_image = ImageTk.PhotoImage(img_e)
-            except (UnidentifiedImageError, OSError):
-                pass
+        self._load_assets()
+        self._setup_theme()
+        self._create_widgets()
+        self._setup_drag_and_drop()
 
-        logo_path = os.path.join(self.assets_dir, "IconCraft.png")
-        if os.path.isfile(logo_path):
-            try:
-                logo_img = Image.open(logo_path)
-                w, h = logo_img.size
-                new_w = 150
-                new_h = int(h * (new_w / w))
-                logo_img = logo_img.resize((new_w, new_h), RESAMPLE)
-                self.logo_photo = ImageTk.PhotoImage(logo_img)
-                logo_label = ttk.Label(
-                    self,
-                    image=self.logo_photo,
-                    background="#f5f5f5"
-                )
-                logo_label.pack(pady=(15, 5))
-            except (UnidentifiedImageError, OSError):
-                pass
-
+    def _setup_theme(self):
         style = ttk.Style(self)
         style.theme_use('clam')
-        style.configure(
-            'Header.TLabel',
-            font=('Segoe UI', 18, 'bold'),
-            background='#f5f5f5'
-        )
-        style.configure(
-            'Icon.TButton',
-            font=('Segoe UI', 11),
-            padding=8
-        )
+        style.configure('.', background=self.BG_COLOR, foreground=self.TEXT_COLOR, font=(self.THEME_FONT, 10))
+        style.configure('TFrame', background=self.BG_COLOR)
+        style.configure('TLabel', background=self.BG_COLOR, foreground=self.TEXT_COLOR)
 
-        header = ttk.Label(
-            self,
-            text="Icon Craft",
-            style='Header.TLabel'
-        )
-        header.pack(pady=(5, 10))
+    def _load_assets(self):
+        self.logo_photo = self._load_resized_image("IconCraft.png", (self.LOGO_WIDTH, -1))
+        self.eureka_image = self._load_resized_image("eureka.png", (self.EUREKA_WIDTH, -1))
+        self.upload_icon = self._load_resized_image("upload.png", self.BUTTON_ICON_SIZE)
+        self.convert_icon = self._load_resized_image("convert.png", self.BUTTON_ICON_SIZE)
 
-        ctrl_frame = ttk.Frame(self, padding=10)
-        ctrl_frame.pack(fill=tk.X)
-        self.upload_icon = self._load_icon("upload.png")
-        self.convert_icon = self._load_icon("convert.png")
+    def _load_resized_image(self, filename: str, size: tuple[int, int]) -> Optional[ImageTk.PhotoImage]:
+        path = os.path.join(self.assets_dir, filename)
+        if not os.path.isfile(path):
+            return None
+        try:
+            img = Image.open(path).convert("RGBA")
+            if size[1] == -1:
+                w, h = img.size
+                new_w = size[0]
+                new_h = int(h * (new_w / w)) if w > 0 else 0
+                size = (new_w, new_h)
+            img = img.resize(size, RESAMPLE)
+            return ImageTk.PhotoImage(img)
+        except (UnidentifiedImageError, OSError, FileNotFoundError):
+            return None
 
-        upload_button = ttk.Button(
-            ctrl_frame,
-            text=" Subir Imágenes",
-            image=self.upload_icon,
-            compound=tk.LEFT if self.upload_icon else None,
-            style='Icon.TButton',
-            command=self.upload_images
-        )
-        upload_button.pack(side=tk.LEFT, padx=(0, 10))
+    def _create_widgets(self):
+        top_frame = tk.Frame(self, bg=self.BG_COLOR)
+        top_frame.pack(pady=(20, 0))
 
-        convert_button = ttk.Button(
-            ctrl_frame,
-            text=" Convertir a .ico",
-            image=self.convert_icon,
-            compound=tk.LEFT if self.convert_icon else None,
-            style='Icon.TButton',
-            command=self.convert_icons
-        )
-        convert_button.pack(side=tk.LEFT)
+        if self.logo_photo:
+            logo_label = tk.Label(top_frame, image=self.logo_photo, bg=self.BG_COLOR, bd=0, highlightthickness=0)
+            logo_label.pack()
+
+        header = ttk.Label(top_frame, text="Icon Craft", background=self.BG_COLOR, font=(self.THEME_FONT, 28, 'bold'))
+        header.pack(pady=(5, 20))
+
+        ctrl_panel = tk.Frame(self, bg=self.BG_COLOR)
+        ctrl_panel.pack(pady=(10, 30))
+
+        def build_glowing_button(parent, image, text, command):
+            glow = tk.Frame(parent, bg=self.BG_COLOR, highlightthickness=0)
+            glow.pack(side=tk.LEFT, padx=100)
+
+            button = tk.Button(
+                glow,
+                image=image,
+                compound=tk.TOP,
+                text=text,
+                font=(self.THEME_FONT, 11),
+                fg=self.TEXT_COLOR,
+                bg=self.BG_COLOR,
+                activebackground=self.BG_COLOR,
+                bd=0,
+                highlightthickness=0,
+                command=command,
+                cursor="hand2"
+            )
+            button.pack()
+
+            def on_enter(e):
+                glow.config(highlightthickness=6, highlightbackground=self.PRIMARY_COLOR)
+
+            def on_leave(e):
+                glow.config(highlightthickness=0)
+
+            button.bind("<Enter>", on_enter)
+            button.bind("<Leave>", on_leave)
+
+        build_glowing_button(ctrl_panel, self.upload_icon, "subir imagenes", self.upload_images)
+        build_glowing_button(ctrl_panel, self.convert_icon, "convertir a .ico", self.convert_icons)
+
+        canvas_frame = tk.Frame(self, bg=self.BG_COLOR)
+        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=20)
 
         self.canvas = tk.Canvas(
-            self,
-            bg="#ffffff",
-            height=120,
-            highlightthickness=1,
-            highlightbackground="#ccc"
+            canvas_frame,
+            bg=self.WIDGET_BG_COLOR,
+            highlightthickness=2,
+            highlightbackground=self.BORDER_COLOR,
+            relief='flat',
+            bd=0
         )
-        self.canvas.pack(fill=tk.X, padx=10, pady=10)
+        self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        self.scroll_x = ttk.Scrollbar(
-            self,
-            orient=tk.HORIZONTAL,
-            command=self.canvas.xview
-        )
-        self.scroll_x.pack(fill=tk.X, padx=10)
+        self.scroll_x = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.scroll_x.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
         self.canvas.configure(xscrollcommand=self.scroll_x.set)
 
         self.inner = ttk.Frame(self.canvas)
-        self.canvas.create_window((0, 0), window=self.inner, anchor='nw')
-        self.inner.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(
-                scrollregion=self.canvas.bbox('all')
-            )
-        )
+        self.canvas.create_window((10, 10), window=self.inner, anchor='nw')
+        self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
 
-        for widget in (self, self.canvas, self.inner):
+    def _setup_drag_and_drop(self):
+        for widget in (self.canvas, self.inner, self):
             widget.drop_target_register(DND_FILES)
             widget.dnd_bind('<<Drop>>', self.drop_images)
 
-    @staticmethod
-    def _load_icon(filename: str) -> Optional[ImageTk.PhotoImage]:
-        path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "assets",
-            filename
-        )
-        try:
-            img = Image.open(path)
-            img = img.resize((24, 24), RESAMPLE)
-            return ImageTk.PhotoImage(img)
-        except (FileNotFoundError, UnidentifiedImageError, OSError):
-            return None
+    def drop_images(self, event):
+        if hasattr(event, 'data'):
+            files = self.tk.splitlist(event.data)
+            self.add_images(list(files))
 
-    def upload_images(self) -> None:
-        files = filedialog.askopenfilenames(
-            filetypes=[("Imágenes PNG/JPG", "*.png *.jpg *.jpeg")]
-        )
-        self.add_images(list(files))
+    def upload_images(self):
+        files = filedialog.askopenfilenames(filetypes=[("Imágenes", "*.png *.jpg *.jpeg *.bmp *.webp")])
+        if files:
+            self.add_images(list(files))
 
-    def drop_images(self, event) -> None:
-        files = self.tk.splitlist(event.data)
-        self.add_images(list(files))
-
-    def add_images(self, paths: Sequence[str]) -> None:
+    def add_images(self, paths: Sequence[str]):
         for path in paths:
-            if len(self.images) >= self.max_images:
-                messagebox.showwarning(
-                    "Límite alcanzado",
-                    f"Máximo {self.max_images} imágenes permitidas."
-                )
-                return
-
-            if path.lower().endswith(('.png', '.jpg', '.jpeg')):
+            if len(self.images) >= self.MAX_IMAGES:
+                messagebox.showwarning("Límite alcanzado", f"No puedes añadir más de {self.MAX_IMAGES} imágenes.")
+                break
+            if path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
                 try:
                     image = Image.open(path)
-                    image.thumbnail((80, 80), RESAMPLE)
+                    image.thumbnail(self.THUMBNAIL_SIZE, RESAMPLE)
                     thumb = ImageTk.PhotoImage(image)
-                    label = ttk.Label(
-                        self.inner,
-                        image=thumb
-                    )
+                    shadow_frame = tk.Frame(self.inner, bg=self.SHADOW_COLOR)
+                    shadow_frame.pack(side=tk.LEFT, padx=10, pady=10)
+                    label = tk.Label(shadow_frame, image=thumb, bg=self.WIDGET_BG_COLOR, bd=0)
                     label.image = thumb
-                    label.pack(side=tk.LEFT, padx=5, pady=5)
+                    label.pack(padx=2, pady=2)
                     self.images.append(path)
                 except (UnidentifiedImageError, OSError) as err:
-                    messagebox.showerror(
-                        "Error al cargar imagen",
-                        f"{path}\n{err}"
-                    )
-
+                    messagebox.showerror("Error al cargar imagen", f"No se pudo cargar:\n{path}\n\nError: {err}")
         self.canvas.update_idletasks()
+        self.canvas.xview_moveto(1.0)
 
-    def convert_icons(self) -> None:
+    def convert_icons(self):
         if not self.images:
-            messagebox.showinfo(
-                "Sin imágenes",
-                "No hay nada que convertir."
-            )
+            messagebox.showinfo("Sin imágenes", "Añade imágenes para convertirlas en iconos.")
             return
-
-        destination = filedialog.askdirectory(
-            title="Selecciona carpeta destino"
-        )
+        destination = filedialog.askdirectory(title="Selecciona dónde guardar los iconos")
         if not destination:
             return
-
-        created = 0
-        for src in self.images:
-            name = os.path.splitext(os.path.basename(src))[0]
-            output = os.path.join(
-                destination,
-                f"{name}.ico"
-            )
+        created_count = 0
+        for src_path in self.images:
+            base_name = os.path.splitext(os.path.basename(src_path))[0]
+            output_path = os.path.join(destination, f"{base_name}.ico")
             try:
-                Image.open(src).save(
-                    output,
-                    format='ICO',
-                    sizes=[(256, 256), (128, 128), (64, 64)]
-                )
-                created += 1
+                Image.open(src_path).save(output_path, format='ICO',
+                                          sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+                created_count += 1
             except OSError as err:
-                messagebox.showerror(
-                    "Error al convertir icono",
-                    f"{src}\n{err}"
-                )
+                messagebox.showerror("Error de conversión", f"No se pudo convertir:\n{src_path}\n\nError: {err}")
+        if created_count > 0:
+            self._show_success_dialog(created_count, destination)
+        self._reset_ui()
 
+    def _show_success_dialog(self, count: int, path: str):
         dialog = tk.Toplevel(self)
         dialog.title("¡Éxito!")
-        dialog.configure(bg="#f5f5f5")
         dialog.transient(self)
         dialog.grab_set()
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.BG_COLOR)
 
         if os.path.isfile(self.ico_path):
             dialog.iconbitmap(self.ico_path)
 
         if self.eureka_image:
-            tk.Label(
-                dialog,
-                image=self.eureka_image,
-                bg="#f5f5f5"
-            ).pack(pady=(20, 10))
+            tk.Label(dialog, image=self.eureka_image, bg=self.BG_COLOR, bd=0).pack(pady=(20, 10))
 
-        msg = (
-            f"¡Eureka!\n"
-            f"Se han guardado {created} iconos en:\n"
-            f"{destination}"
-        )
-        tk.Label(
-            dialog,
-            text=msg,
-            font=('Segoe UI', 12),
-            bg="#f5f5f5",
-            justify=tk.CENTER
-        ).pack(padx=20)
+        msg = f"¡Eureka!\nSe han creado {count} iconos en:\n{os.path.normpath(path)}"
+        tk.Label(dialog, text=msg, font=(self.THEME_FONT, 12), fg=self.TEXT_COLOR, bg=self.BG_COLOR,
+                 justify=tk.CENTER).pack(padx=30)
 
-        ttk.Button(
-            dialog,
-            text="Volver al caldero",
-            command=dialog.destroy
-        ).pack(pady=(10, 20))
+        ok_button = tk.Button(dialog, text="Volver al caldero", font=(self.THEME_FONT, 10), bg=self.WIDGET_BG_COLOR,
+                              fg=self.TEXT_COLOR, relief='flat', activebackground=self.PRIMARY_COLOR,
+                              bd=0, highlightthickness=0, command=dialog.destroy, cursor="hand2")
+        ok_button.pack(pady=(20, 20), ipadx=10, ipady=5)
 
         dialog.update_idletasks()
-        pw = self.winfo_width()
-        ph = self.winfo_height()
-        px = self.winfo_x()
-        py = self.winfo_y()
-        dw = dialog.winfo_width()
-        dh = dialog.winfo_height()
-        x = px + (pw - dw) // 2
-        y = py + (ph - dh) // 2
-        dialog.geometry(f"{dw}x{dh}+{x}+{y}")
-
+        x = self.winfo_x() + (self.winfo_width() - dialog.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
         dialog.wait_window()
 
+    def _reset_ui(self):
         self.images.clear()
-
         for child in self.inner.winfo_children():
             child.destroy()
-
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
         self.canvas.update_idletasks()
 
 
